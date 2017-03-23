@@ -1,0 +1,511 @@
+---
+title: "Chapter1-Dataset"
+author: "Montse Figueiro"
+date: "15 de febrero de 2017"
+output: md_document
+  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+####Reading csv or txt files
+
+```{r}
+getwd()
+setwd("D:\\ActuarialScienceR\\")
+##db <- read.table("file.txt")
+```
+
+```{r}
+stormmax <- read.table("extremedatasince1899.csv",header=TRUE,sep = ",")
+head(stormmax)
+nbvariables <- count.fields("extremedatasince1899.csv",sep = ",")
+##count.fields se puede usar para descubrir si hay errores y donde estan
+which(nbvariables!=quantile(nbvariables,0.9))##me da 0
+stormmax[is.na(stormmax),]
+tail(stormmax)
+str(stormmax)
+```
+
+```{r}
+set.seed(123)
+df <- data.frame(x1=rnorm(5),x2=sample(1:2,size=5,replace=TRUE),x3=rnorm(5))
+df[order(df$x2,-df$x1),]
+``` 
+
+Volviendo al caso anterior vemos que read.table convierte automáticamente character variables en factores esto se puede evitar con stringsAsFactors.
+
+Para datasets largos se puede seleccionar algunas columnas para importar o manualmente o con funcion en paquete:
+install.packages("ColByCol")
+library(colbycol)
+```{r}
+mycols <- rep("NULL",11)
+mycols[c(1,2,3)] <- NA
+mycols
+stormmax <- read.table("extremedatasince1899.csv",header=TRUE,sep=",",colClasses = mycols)
+tail(stormmax)
+```
+Es más rapido especificar la clase de los elementos a importar:
+```{r}
+mycols <- rep("NULL",11)
+mycols[c(1,2,3)] <- c("integer","factor","numeric")
+stormmax <- read.table("extremedatasince1899.csv",header=TRUE,sep=",",colClasses = mycols)
+str(stormmax)
+```
+
+Para datasets pesados es mejor importar el zip
+```{}
+read.table(unz("file.zip",filename = "file.txt"))
+import.url.zip = function(file,name="file.txt"){temp=tempfile(),download.file(file,temp);read.table(unz(temp,name),sep=",",header=TRUE,encoding="latin1")}
+```
+primero bajamos el fichero y luego hacemos el unz esta funcion solo funciona con el fichero en nuestro ordenador.
+
+```{}
+system.time(read.table("file.txt",sep=",",header=TRUE)) mucho mas largo
+system.time(read.table(unz("file.txt.zip",filename="file.txt"),sep=",",header=TRUE))más corto
+```
+
+R usa Ram existen paquetes para trabajar con datos grandes:
+
+```{}
+install.packages("ff")
+install.packages("bigmemory")
+```
+Desde Python podemos usar R con el paquete rpy2, ya que python es más eficiente leyendo.
+
+####Missing Values
+
+Para saber si hay missing values:
+```{r}
+Xfull <- stormmax[is.na(stormmax)==FALSE]
+Xfull <- stormmax[!is.na(stormmax)]
+length(Xfull)
+dim(stormmax)
+##no hay missing
+```
+
+Si na.rm es TRUE los NA son borrados y se computa la media en el sub-vector. En la lm() es posible indicar na.action. En grandes dataset es posible usar la libreria data.table que es más rápida.
+
+```{r}
+library(data.table)
+DF <- data.frame(matrix(rnorm(100000),10000,10));DF$index <- 1:nrow(DF)
+DT <- data.table(DF)
+library(benchmark)
+##benchmark(DF[DF$X1>2,],DT[DT$X1>2,])[,c(1,3,4)]
+head(DF)
+```
+write.table() exporta la matrix o dataframe a fichero de texto.
+
+```{}
+cat(object,file="namefile.txt",append=FALSE) ## si apend TRUE añadimos el objeto al fichero existente, si es FALSE overwrite el fichero.
+```
+```{r}
+cat("File DF contains",nrow(DF),"rows \n")
+```
+
+La función sink() creamos un fichero de texto y guardamos cualquier objeto dentro:
+```{r}
+sink('DT.txt')
+print(DT);
+sink()
+```
+
+Scan() to import data, to read html pages:
+
+```{r}
+scan("https://cran.r-project.org/",what="character",encoding = "latin1")
+``` 
+Cuando trabajamos con data frames es posible usar SQL
+```{r}
+library(sqldf)
+##df3 <- sqldf("SELECT Id, X1, X2 FROM df1 JOIN df2 USING(Id)")
+library(plyr)
+##df3 <- join(df1,df2,type="inner")
+```
+
+###IMPORT EXCEL FILES AND SAS TABLES
+
+```{r}
+library(foreign)
+library(RODBC)
+library(gdata)
+##http://www.activestate.com/activeperl/downloads se ha descargado perl aquí porque daba error al intentar cargar el fichero de excel
+tablasgkfm95 <- read.xls("Tablas_95.xls",sheet=1,perl="C:\\Perl64\\bin\\perl.exe")
+str(tablasgkfm95)
+tablasgkfm95[6:10] <- list(NULL)
+str(tablasgkfm95)
+```
+
+
+####Characters, Factors and Dates with R
+
+#####Character and Factors
+
+Muchas funciones pueden usarse con strings:
+```{r}
+city <- "Boston, MA"
+nchar(city)
+substr(city,9,10)
+city <- paste(city,"SSACHUSETTS",sep="")
+(strsplit(city,","))##nos da una lista
+cities <- c("New York, NY","Los Angeles, CA","Boston, MA")
+substr(cities,nchar(cities)-1,nchar(cities))
+unlist(strsplit(cities,","))[seq(2,6,by=2)]
+```
+
+Strings de caracteres pueden ser inputs en modelos actuariales (localizacion, nombres...) pero también output.
+```{r}
+##cat("Number of available packages =",length(available.packages()[,1]))
+##si queremos ver cuantos paquetes empiezan por "e" o "E" si usamos tolower()
+##packageletter <- "e"
+#cat("Number of packages \n starting with a \"",packageletter,"\" is ",sum(tolower(substr(available.packages()[,1],1,1))==packageletter),sep="")
+```
+
+En modelos estadísticos characters son usados como factores.
+
+```{r}
+x <- c("A","A","B","B","C")
+x <- c(rep(LETTERS[1:2],each=2),LETTERS[3])
+x <- factor(x)
+unclass(x)
+```
+Como podemos ver un dator esta guardado en codigo cogiendo valores 1,2,3..n donde n es el numero de categorías, los niveles sono ordenados alfabeticamente.
+```{r}
+factor(rev(x))
+x <- factor(x,labels=c("Young","Adult","Senior")) ##el orden tendrá que ser el mismo que indican los niveles A;B;C
+```
+Si la variable x se usa en una regresión el nivel Young será la referencia, si queremos especificar otra:
+
+```{r}
+relevel(x,"Senior")
+x <- factor(x,labels=c("Young","Adult","Senior"),ordered = TRUE) ##ordenar los niveles puede ser interesante en regresion multinomial ordenada
+x
+```
+A partir de un vector con diferentes categorias podemos crear una variable dummy:
+
+```{r}
+model.matrix(~0+x)
+```
+
+Los datos numéricos los podemos partir en categorias:
+
+```{r}
+U <- runif(20)
+cut(U,breaks = 2)
+cut(U,breaks = 2,labels=c("small","large"))
+cut(U,breaks = c(0,.3,.8,1),labels=c("small","medium","large"))
+```
+Hemos creado dos niveles.
+
+Para conocer la frecuencia de cada factor: TABLE()
+
+```{r}
+table(cut(U,breaks = c(0,.3,.8,1),labels=c("small","medium","large")))
+```
+Para generar vectores de factores gl()
+
+```{r}
+gl(2,4,labels=c("In","Out"))
+```
+
+#####Dates in R
+
+strptime and as.Date
+```{r}
+Sys.setlocale(category="LC_TIME","C")
+some.dates <- strptime(c("16/Oct/2012:07:51:12","19/Nov/2012:23:17:12"),format="%d/%B/%Y:%H:%M:%S")
+some.dates
+some.dates <- as.Date(c("16/10/12","19/11/12"),format="%d/%m/%y")
+some.dates
+diff(some.dates)
+difftime(some.dates[2],some.dates[1],units="hours")
+sequence.date <- seq(from=some.dates[1],to=some.dates[2],by=7)##fecha sumando siete dias
+sequence.date
+```
+Funcion que genera fecha a partir del mes, dia y año
+```{r}
+mdy=function(m,d,y){
+  d.char=as.character(d);d.char[d<10]=paste("0",d.char[d<10],sep="")
+  m.char= as.character(m);m.char[m<10]=paste("0",m.char[m<10],sep="")
+  y.char=as.character(y)
+  return(as.Date(paste(m.char,d.char,y.char,sep="/"),"%m/%d/%Y"))
+}
+mdy(c(12,6),5,c(1975,1976))
+```
+
+Podemos convertir las fechas usando format() o weekdays
+
+```{r}
+format(sequence.date,"%b")
+weekdays(sequence.date)
+```
+
+En el caso anterior no hemos creado ningún objeto:
+```{r}
+Months <- months(sequence.date)
+Months
+##en sequence.date las 4 primeras cifras son el año, podemos extraerlas
+Year <- substr(as.POSIXct(sequence.date),1,4)
+substr(sequence.date,1,4)
+strftime(sequence.date,"%Y")##más rápido
+```
+Fechas en Español, buscar en la ?Sys.setlocale para ver que nomenclatura tiene segun el sistema operativo.
+```{r}
+Sys.setlocale("LC_TIME","Spanish")
+weekdays(some.dates)
+```
+
+
+####Symbolic expressions in R
+
+Y= B0+B1*X1+B2*X2+B3*X3+error
+
+es una regresión lineal la expresion es:
+```{}
+fit <- lm(y~x1+x2+x3.data=df)
+fit <- lm(y~x1+I(x2+x3),data=df)##regression con x1 y x2+x3
+```
+
+Para variables categóricas posibles interacciones entre X1 y x2 se obtienene usando x1:x2.
+
+Ejemplo:
+```{r}
+set.seed(123)
+df <- data.frame(Y=rnorm(50),X1=as.factor(sample(LETTERS[1:4],size=50,replace=TRUE)),X2=as.factor(sample(1:3,size=50,replace=TRUE)))
+tail(df)
+```
+
+el modelo por defecto:
+
+```{r}
+reg <- lm(Y~X1+X2,data=df)
+reg
+model.matrix(reg)[45:50,]##pasamos a dummies las dos variables son categóricas
+```
+
+Este modelo tiene 6 variables explicatorias, ahora añadimos x1:x2 al modelo:
+
+```{r}
+reg <- lm(Y~X1+X2+X1:X2,data=df)
+model.matrix(reg)[45:50,]
+```
+Es igual que:
+```{r}
+reg <- lm(Y~X1*X2,data=df)
+model.matrix(reg)[45:50,]
+reg <- lm(Y~X1:X2,data=df)
+model.matrix(reg)[45:50,]
+ncol(model.matrix(reg))
+```
+
+Es posible usar %in%
+
+```{r}
+reg <- lm(Y~X1+X2%in%X1,data=df)
+model.matrix(reg)[45:50,]
+```
+las interacciones son {A,B,C,D}x{2,3} 12 variables explicatorias.
+
+Una fórmula es un string es possible usar:
+```{r}
+stringformula <- paste("Y~",paste(names(df)[2:3],collapse = "+"))
+stringformula
+fit <- lm(formula=stringformula,data=df)
+fit
+```
+
+
+####BASICS R LANGUAGE
+
+```{R}
+factorial
+gamma
+var
+```
+
+```{r}
+x <- 0:1
+x
+sum((x-mean(x))^2)
+var(x)
+x <- c(1,4,6,6,10,5)
+mean(x)
+m <- matrix(x,3,2)
+m
+mean(m)
+```
+
+Para calcular medias por columna o por filas, en una matriz:
+
+```{r}
+apply(m,1,mean)#cada fila
+apply(m,2,mean)#cada columna
+apply(m,2,cumsum)##suma acumulada por columna
+```
+
+Podemos quereer las medias de un factor:
+
+```{r}
+sex <- c("H","F","F","H","H","H")
+base <- data.frame(x,sex)
+base
+```
+Queremos saber la media de x por sexo:
+
+```{r}
+tapply(x,sex,mean)
+```
+
+```{r}
+tapply(x,sex,sum)
+rowsum(x,sex)
+```
+
+Segunda categórica:
+```{r}
+base$hair <- c("Black","Brown","Black","Black","Brown","Blonde")
+table(base$sex,base$hair)
+addmargins(table(base$sex,base$hair))##incluye las sumas por fila y por columna
+```
+
+####GRÁFICOS  
+
+```{r}
+f <- function(x,p,d){
+  s <- sum(p*x/(1+d)^(1:length(x)))
+  return(s)
+}
+f(x=c(100,200,100),p=c(.4,.5,.3),d=.05)
+f(c(100,200,100),c(.4,.5,.3),.05)##no es necesario escribir el nombre, los considera en el orden de la fórmula
+```
+
+Vector con la gente viva en la edad x.
+```{r}
+library(CASdatasets)
+#alive <- TV8890$Lx
+```
+
+trunc nos da por décadas
+```{R}
+d <- table(trunc(stormmax$Yr/10)*10)[-1]
+barplot(d)
+```
+
+Interaction.plot clasificamos los años por década, cada entrada queda clasidicada en una década. que lo agrupe por Region y por década y me de la media de Wmax.
+```{r}
+attach(stormmax)
+decade <- trunc(Yr/10)*10
+stormmax$decade <- decade
+head(stormmax)
+pruebaagg <- aggregate(stormmax$Wmax,by=list(Region,decade),mean)
+head(pruebaagg[order(-pruebaagg$x),])
+interaction.plot(decade,Region,Wmax,type="b",pch=1:5)  
+```
+
+###Control Flow
+
+Queremos listar todos los csv:
+```{r}
+listdf <- list()
+listcsv <- dir(pattern = "*.csv")
+listcsv
+for(filename in listcsv){ listdf[filename] <- read.csv(filename)}
+```
+Abrimos todos los ficheros csv en una lista:
+```{r}
+listdf <- lapply(dir(pattern = "*.csv"), read.csv)
+listdf[[1]]
+```
+
+```{r}
+set.seed(1)
+u <- runif(1)
+if(u>.5) {("greater than 50%")} else {("smaller than 50%")}
+ifelse(u>.5,("greater than 50%"),("smaller than 50%"))
+u
+```
+The main dierence is that ifelse() is vectorizable, but not if().
+Ifelse te da el resultado para más de un valor, if solo del primero.
+```{r}
+u <- runif(3)
+if(u>.5) {print("greater than 50%")} else {("smaller than 50%")}
+ifelse(u>.5,("greater than 50%"),("smaller than 50%"))
+u
+
+```
+
+###Funciones propias en R
+
+$\sum_{i=1}^{n} \frac{p_i*x_i}{(1+d_i)^i}$
+
+El sumatorio de p*x dividido entre (1+d)^i
+
+```{r}
+f <- function(x,p,d){
+  s <- sum(p*x/(1+d)^(1:length(x)))
+  return(s)
+}
+f(x=c(100,200,100),p=c(.4,.5,.3),d=.05)
+
+```
+
+La funcion qnorm computa quantiles para un N(0,1)
+
+```{r}
+qnorm(.95)
+qnorm(.95,1,2)
+```
+
+La funcion de densidad de la Normal, es una integral desde t a infinito.
+
+```{r}
+f <- function(x,m=0,s=1){
+ H<-function(t) 1-pnorm(t,m,s)#inversa de la normal, coge el area desde t a infinito.
+ integral<-integrate(H,lower=x,upper=Inf)$value
+ res<-H(x)/integral
+ return(res)
+ }
+```
+
+X no es un vector
+```{r}
+f(x <- 0:1)
+```
+Si queremos vectorizarlo
+```{r}
+Vectorize(f)(x)
+```
+Me devuelve la densidad donde x=0 y donde x=1
+
+```{r}
+y <- sapply(x,"f")
+y
+```
+
+Bivariate Gaussian Density
+
+```{r}
+binorm <- function(x1,x2,r=0){
+ exp(-(x1^2+x2^2-2*r*x1*x2)/(2*(1-r^2)))/(2*pi*sqrt(1-r^2))
+}
+u <- seq(-2,2)
+u
+binorm(u,u)
+outer(u,u,binorm)
+```
+
+```{r}
+Vectorize (f)(u)
+```
+
+
+###Funciones en contexto de Seguros de Vida
+
+```{r}
+head(tablasgkfm95)
+GKFlx <- tablasgkfm95$GKF_95_px
+death <- -diff(GKFlx)
+head(death)
+```
